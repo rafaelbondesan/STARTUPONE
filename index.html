@@ -4,29 +4,31 @@
   <meta charset="UTF-8" />
   <title>SecOrch Hacker UI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 </head>
 <body style="margin:0; background:#050607;">
   <div id="root"></div>
 
   <!-- React -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Recharts -->
-  <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+  <!-- Workaround for lucide-react UMD expecting window.react instead of window.React -->
+  <script>window.react = window.React;</script>
 
-  <!-- Lucide -->
-  <script src="https://unpkg.com/lucide-react/dist/umd/lucide-react.js"></script>
+  <!-- Dependencies for UMD builds -->
+  <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+  <script src="https://unpkg.com/react-is/umd/react-is.production.min.js"></script>
 
-  <!-- Babel -->
+  <!-- Recharts (UMD exposes window.Recharts) -->
+  <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+
+  <!-- Lucide React (UMD exposes window.LucideReact) -->
+  <script src="https://unpkg.com/lucide-react/dist/umd/lucide-react.min.js"></script>
+
+  <!-- Babel for JSX in app.js -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- App -->
-  <script type="text/babel" src="app.js"></script>
+  <!-- App (JSX) -->
+  <script type="text/babel" src="./app.js"></script>
 </body>
 </html>
