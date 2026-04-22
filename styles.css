@@ -1,0 +1,19 @@
+:root {
+  --bg-primary:#050607;
+  --bg-secondary:#07090a;
+  --bg-card:#0b0d0f;
+  --bg-elevated:#0d1012;
+  --border:rgba(245,199,39,.15);
+  --text-primary:#f5f5f5;
+  --text-secondary:rgba(245,245,245,.7);
+  --accent:#f5c727;
+  --green:#22c55e;
+  --red:#ff3b30;
+}
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
