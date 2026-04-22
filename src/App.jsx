@@ -1,541 +1,64 @@
-import { useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Area, AreaChart, CartesianGrid } from "recharts";
-import { Shield, LayoutDashboard, FolderKanban, Link2, Bell, FileCheck, Settings, ChevronRight, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, XCircle, Search, Clock, GitBranch, Eye, Activity, Plus } from "lucide-react";
+import { useState, createContext, useContext } from "react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, CartesianGrid } from "recharts";
+import { Shield, LayoutDashboard, FolderKanban, Link2, Bell, FileCheck, Settings, ChevronRight, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, XCircle, Search, Clock, GitBranch, Eye, Activity, Plus, Menu, X, Globe, ArrowUpRight, Download } from "lucide-react";
 
-// ─── MOCK DATA ───
-const PROJECTS = [
-  { id: 1, name: "payments-api", team: "Payments", criticality: "Critical", lang: "Java", score: 3.2, prevScore: 2.8, trend: "up", sast: true, sca: true, dast: true, secrets: true, compliance: ["PCI DSS"], lastScan: "2h ago", vulns: { critical: 2, high: 8, medium: 23, low: 45 }, coverage: 100 },
-  { id: 2, name: "user-portal", team: "Identity", criticality: "High", lang: "React/Node", score: 2.7, prevScore: 2.5, trend: "up", sast: true, sca: true, dast: false, secrets: true, compliance: ["LGPD", "SOC2"], lastScan: "4h ago", vulns: { critical: 0, high: 3, medium: 15, low: 30 }, coverage: 75 },
-  { id: 3, name: "data-pipeline", team: "Data Eng", criticality: "High", lang: "Python", score: 1.9, prevScore: 2.1, trend: "down", sast: true, sca: false, dast: false, secrets: false, compliance: ["LGPD"], lastScan: "2d ago", vulns: { critical: 5, high: 12, medium: 34, low: 67 }, coverage: 25 },
-  { id: 4, name: "mobile-app", team: "Mobile", criticality: "Medium", lang: "Kotlin/Swift", score: 2.4, prevScore: 2.0, trend: "up", sast: true, sca: true, dast: false, secrets: true, compliance: [], lastScan: "6h ago", vulns: { critical: 1, high: 5, medium: 18, low: 22 }, coverage: 75 },
-  { id: 5, name: "admin-dashboard", team: "Platform", criticality: "Medium", lang: "React", score: 3.5, prevScore: 3.3, trend: "up", sast: true, sca: true, dast: true, secrets: true, compliance: ["SOC2"], lastScan: "1h ago", vulns: { critical: 0, high: 1, medium: 8, low: 15 }, coverage: 100 },
-  { id: 6, name: "notification-svc", team: "Platform", criticality: "Low", lang: "Go", score: 2.1, prevScore: 2.1, trend: "stable", sast: true, sca: true, dast: false, secrets: false, compliance: [], lastScan: "5d ago", vulns: { critical: 0, high: 4, medium: 11, low: 20 }, coverage: 50 },
-  { id: 7, name: "checkout-flow", team: "Payments", criticality: "Critical", lang: "TypeScript", score: 2.9, prevScore: 2.4, trend: "up", sast: true, sca: true, dast: true, secrets: true, compliance: ["PCI DSS", "LGPD"], lastScan: "30m ago", vulns: { critical: 1, high: 6, medium: 20, low: 38 }, coverage: 100 },
-  { id: 8, name: "internal-tools", team: "Engineering", criticality: "Low", lang: "Python", score: 1.2, prevScore: 1.0, trend: "up", sast: false, sca: false, dast: false, secrets: false, compliance: [], lastScan: "never", vulns: { critical: 0, high: 0, medium: 0, low: 0 }, coverage: 0 },
-];
-
-const SAMM_DOMAINS = [
-  { domain: "Governance", score: 2.8 },
-  { domain: "Design", score: 2.4 },
-  { domain: "Implementation", score: 2.6 },
-  { domain: "Verification", score: 2.1 },
-  { domain: "Operations", score: 1.9 },
-];
-
-const TREND_DATA = [
-  { month: "Nov", score: 1.8, vulns: 340 }, { month: "Dec", score: 2.0, vulns: 310 },
-  { month: "Jan", score: 2.1, vulns: 285 }, { month: "Feb", score: 2.3, vulns: 260 },
-  { month: "Mar", score: 2.5, vulns: 230 }, { month: "Apr", score: 2.6, vulns: 215 },
-];
-
-const INTEGRATIONS = [
-  { name: "GitHub", type: "SCM", status: "connected", repos: 142, icon: "GH", color: "#e8e8e8" },
-  { name: "GitLab", type: "SCM", status: "connected", repos: 38, icon: "GL", color: "#FC6D26" },
-  { name: "Snyk", type: "SCA", status: "connected", repos: 95, icon: "SN", color: "#4C4A73" },
-  { name: "SonarQube", type: "SAST", status: "connected", repos: 120, icon: "SQ", color: "#4E9BCD" },
-  { name: "Checkmarx", type: "SAST", status: "disconnected", repos: 0, icon: "CX", color: "#54B848" },
-  { name: "OWASP ZAP", type: "DAST", status: "connected", repos: 42, icon: "ZP", color: "#00549E" },
-  { name: "Gitleaks", type: "Secrets", status: "connected", repos: 180, icon: "GK", color: "#E44D26" },
-  { name: "Trivy", type: "Container", status: "partial", repos: 60, icon: "TR", color: "#1904DA" },
-];
-
-const ALERTS = [
-  { id: 1, severity: "critical", project: "data-pipeline", message: "Nenhum scan de secrets configurado", type: "gap", time: "2h" },
-  { id: 2, severity: "critical", project: "internal-tools", message: "Projeto sem nenhuma ferramenta de seguran\u00e7a integrada", type: "gap", time: "5d" },
-  { id: 3, severity: "high", project: "data-pipeline", message: "SCA n\u00e3o configurado \u2014 depend\u00eancias n\u00e3o monitoradas", type: "gap", time: "2d" },
-  { id: 4, severity: "high", project: "payments-api", message: "2 vulnerabilidades cr\u00edticas abertas h\u00e1 mais de 7 dias", type: "vuln", time: "7d" },
-  { id: 5, severity: "high", project: "notification-svc", message: "DAST n\u00e3o configurado para servi\u00e7o exposto externamente", type: "gap", time: "3d" },
-  { id: 6, severity: "medium", project: "user-portal", message: "DAST n\u00e3o configurado", type: "gap", time: "1d" },
-  { id: 7, severity: "medium", project: "mobile-app", message: "Score de maturidade abaixo do target do time", type: "maturity", time: "12h" },
-  { id: 8, severity: "low", project: "checkout-flow", message: "Scan de DAST n\u00e3o executado nas \u00faltimas 48h", type: "stale", time: "2d" },
-];
-
-// ─── GLOBAL STYLES ───
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-
-:root {
-  --bg-primary: #0c0d14;
-  --bg-secondary: #12131c;
-  --bg-card: #16171f;
-  --bg-card-hover: #1c1d28;
-  --bg-elevated: #22232e;
-  --border: rgba(245,197,66,0.08);
-  --border-hover: rgba(245,197,66,0.18);
-  --text-primary: #f0f0f0;
-  --text-secondary: #9a9bae;
-  --text-muted: #5c5d6e;
-  --accent: #f5c542;
-  --accent-dim: rgba(245,197,66,0.10);
-  --accent-glow: rgba(245,197,66,0.25);
-  --accent-dark: #c49a1a;
-  --green: #34d399;
-  --green-dim: rgba(52,211,153,0.12);
-  --yellow: #fbbf24;
-  --yellow-dim: rgba(251,191,36,0.12);
-  --red: #f87171;
-  --red-dim: rgba(248,113,113,0.12);
-  --orange: #fb923c;
-  --orange-dim: rgba(251,146,60,0.12);
-}
-
-* { margin:0; padding:0; box-sizing:border-box; }
-html, body, #root { height: 100%; }
-body { background: var(--bg-primary); color: var(--text-primary); font-family: 'DM Sans', sans-serif; }
-
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
-
-@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-`;
-
-// ─── SMALL COMPONENTS ───
-const ScoreBadge = ({ score, size = "md" }) => {
-  const color = score >= 3 ? "var(--green)" : score >= 2 ? "var(--accent)" : "var(--red)";
-  const bg = score >= 3 ? "var(--green-dim)" : score >= 2 ? "var(--accent-dim)" : "var(--red-dim)";
-  const dim = size === "lg" ? { fs: "28px", w: 64 } : { fs: "15px", w: 42 };
-  return (
-    <div style={{ width: dim.w, height: dim.w, borderRadius: 12, background: bg, border: `1.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: dim.fs, fontWeight: 700, color, fontFamily: "'Outfit',sans-serif", flexShrink: 0 }}>
-      {score.toFixed(1)}
-    </div>
-  );
+const TEXTS = {
+  en: {dashboard:"Dashboard",projects:"Projects",integrations:"Integrations",alerts:"Alerts",compliance:"Compliance",settings:"Settings",beforeAfter:"Before & After",execView:"Executive View",execSub:"Portfolio security posture. Updated in real time.",avgScore:"Avg maturity score (SAMM)",critVulns:"Open critical vulnerabilities",toolCov:"Full tool coverage",totalVulns:"Total vulnerabilities",scoreEvolution:"Maturity Score Evolution",sammPortfolio:"OWASP SAMM Portfolio",scoreByProject:"Maturity Score by Project",viewAll:"View all",project:"Project",team:"Team",criticality:"Criticality",score:"Score",coverage:"Coverage",vulnsH:"Vulns (C/H)",tools:"Tools",lastScan:"Last scan",projMon:"projects monitored",searchProj:"Search project...",back:"Back to projects",sammBk:"OWASP SAMM Breakdown",vulns:"Vulnerabilities",intTools:"Integrated Tools",notConf:"Not configured",repos:"repos",partial:"partial",disconnected:"Disconnected",connect:"Connect",configure:"Configure",addInt:"Add integration",intT:"Integrations",intS:"Tools connected to the security pipeline",alertT:"Alerts",alertS:"Coverage gaps and priority vulnerabilities",all:"All",gaps:"Gaps",vulnsF:"Vulns",maturity:"Maturity",compT:"Compliance",compS:"Conformity status by regulatory framework",projAff:"projects affected",adherence:"adherence",met:"Met",partialC:"Partial",pending:"Pending",settT:"Settings",settS:"Security policies and adaptive gates",adaptGates:"Adaptive Gates by Criticality",genSett:"General Settings",gapN:"Coverage gap notifications",gapD:"Alert when project lacks required tool",autoB:"Automatic deploy block",autoBD:"Block deploy when score below minimum",weekR:"Weekly report",weekRD:"Send executive summary every Monday",contS:"Continuous vuln sync",contSD:"Update tool data every 15min",edit:"Edit",minS:"Minimum",noMin:"No minimum",exportR:"Export Report",beforeT:"BEFORE: Current Situation",afterT:"AFTER: With the Platform",aspects:["Tools","Visibility","Gates","Friction","Triage","Maturity","Cost","Compliance"],bef:["3+ disconnected vendors, scattered data","Partial or none. Can't answer project score","Static, one-size-fits-all rules","Constant. Devs: huge backlog","Manual. Hours correlating alerts","No score. No benchmark. No history","US$50-80+/dev/month across vendors","Reactive. Manual evidence before audits"],aft:["Same tools, orchestrated in single layer","100% projects with visible maturity score","Adaptive by context: criticality, sector, regulation","Reduced. Integrated security, no unnecessary blocks","Automated. Risk-based prioritization","OWASP SAMM score per project. Visible benchmark","Consolidated. Orchestration over existing tools","Continuous. Automatically generated evidence"],gateR:["SAST+SCA+DAST+Secrets required. Blocks critical & high.","SAST+SCA+Secrets required. Blocks critical.","SAST+SCA required. Alerts on critical.","SAST recommended. No blocking."],switchLang:"Mudar para Portugu\u00eas"},
+  pt: {dashboard:"Dashboard",projects:"Projetos",integrations:"Integra\u00e7\u00f5es",alerts:"Alertas",compliance:"Compliance",settings:"Configura\u00e7\u00f5es",beforeAfter:"Antes e Depois",execView:"Vis\u00e3o Executiva",execSub:"Postura de seguran\u00e7a do portf\u00f3lio. Atualizado em tempo real.",avgScore:"Score m\u00e9dio de maturidade (SAMM)",critVulns:"Vulnerabilidades cr\u00edticas abertas",toolCov:"Cobertura total de ferramentas",totalVulns:"Total de vulnerabilidades",scoreEvolution:"Evolu\u00e7\u00e3o do Score de Maturidade",sammPortfolio:"OWASP SAMM \u2014 Portf\u00f3lio",scoreByProject:"Score de Maturidade por Projeto",viewAll:"Ver todos",project:"Projeto",team:"Time",criticality:"Criticidade",score:"Score",coverage:"Cobertura",vulnsH:"Vulns (C/H)",tools:"Tools",lastScan:"\u00daltimo scan",projMon:"projetos monitorados",searchProj:"Buscar projeto...",back:"Voltar aos projetos",sammBk:"OWASP SAMM Breakdown",vulns:"Vulnerabilidades",intTools:"Ferramentas integradas",notConf:"N\u00e3o configurado",repos:"repos",partial:"parcial",disconnected:"Desconectado",connect:"Conectar",configure:"Configurar",addInt:"Adicionar integra\u00e7\u00e3o",intT:"Integra\u00e7\u00f5es",intS:"Ferramentas conectadas ao pipeline de seguran\u00e7a",alertT:"Alertas",alertS:"Gaps de cobertura e vulnerabilidades priorit\u00e1rias",all:"Todos",gaps:"Gaps",vulnsF:"Vulns",maturity:"Maturidade",compT:"Compliance",compS:"Status de conformidade por framework regulat\u00f3rio",projAff:"projetos afetados",adherence:"ader\u00eancia",met:"Atendidos",partialC:"Parcial",pending:"Pendentes",settT:"Configura\u00e7\u00f5es",settS:"Pol\u00edticas de seguran\u00e7a e gates adaptativos",adaptGates:"Gates Adaptativos por Criticidade",genSett:"Configura\u00e7\u00f5es Gerais",gapN:"Notifica\u00e7\u00f5es de gaps",gapD:"Alertar quando projeto sem ferramenta obrigat\u00f3ria",autoB:"Bloqueio autom\u00e1tico de deploy",autoBD:"Impedir deploy quando score abaixo do m\u00ednimo",weekR:"Relat\u00f3rio semanal",weekRD:"Enviar resumo executivo toda segunda-feira",contS:"Sync cont\u00ednuo de vulns",contSD:"Atualizar dados a cada 15min",edit:"Editar",minS:"M\u00ednimo",noMin:"Sem m\u00ednimo",exportR:"Exportar Relat\u00f3rio",beforeT:"ANTES: Situa\u00e7\u00e3o Atual",afterT:"DEPOIS: Com a Plataforma",aspects:["Ferramentas","Visibilidade","Gates","Fric\u00e7\u00e3o","Triagem","Maturidade","Custo","Compliance"],bef:["3+ vendors desconectados, dados dispersos","Parcial ou nenhuma. N\u00e3o responde score","Est\u00e1ticos, tamanho \u00fanico","Constante. Devs: backlog gigante","Manual. Horas correlacionando alertas","Sem score. Sem r\u00e9gua. Sem hist\u00f3rico","US$50-80+/dev/m\u00eas somando vendors","Reativo. Evid\u00eancias manuais"],aft:["Mesmas ferramentas, orquestradas","100% projetos com score vis\u00edvel","Adaptativos por contexto","Reduzida. Seguran\u00e7a sem bloqueios","Automatizada. Prioriza\u00e7\u00e3o por risco","Score OWASP SAMM por projeto","Consolidado. Orquestra\u00e7\u00e3o sobre existentes","Cont\u00ednuo. Evid\u00eancias autom\u00e1ticas"],gateR:["SAST+SCA+DAST+Secrets obrigat\u00f3rios. Bloqueia critical e high.","SAST+SCA+Secrets obrigat\u00f3rios. Bloqueia critical.","SAST+SCA obrigat\u00f3rios. Alerta em critical.","SAST recomendado. Sem bloqueio."],switchLang:"Switch to English"}
 };
+const LC=createContext();const uL=()=>useContext(LC);
+const PJ=[{id:1,n:"payments-api",tm:"Payments",cr:"Critical",ln:"Java",sc:3.2,tr:"up",sa:1,sc2:1,da:1,se:1,co:["PCI DSS"],ls:"2h",v:{c:2,h:8,m:23,l:45},cv:100},{id:2,n:"user-portal",tm:"Identity",cr:"High",ln:"React/Node",sc:2.7,tr:"up",sa:1,sc2:1,da:0,se:1,co:["LGPD","SOC2"],ls:"4h",v:{c:0,h:3,m:15,l:30},cv:75},{id:3,n:"data-pipeline",tm:"Data Eng",cr:"High",ln:"Python",sc:1.9,tr:"down",sa:1,sc2:0,da:0,se:0,co:["LGPD"],ls:"2d",v:{c:5,h:12,m:34,l:67},cv:25},{id:4,n:"mobile-app",tm:"Mobile",cr:"Medium",ln:"Kotlin",sc:2.4,tr:"up",sa:1,sc2:1,da:0,se:1,co:[],ls:"6h",v:{c:1,h:5,m:18,l:22},cv:75},{id:5,n:"admin-dashboard",tm:"Platform",cr:"Medium",ln:"React",sc:3.5,tr:"up",sa:1,sc2:1,da:1,se:1,co:["SOC2"],ls:"1h",v:{c:0,h:1,m:8,l:15},cv:100},{id:6,n:"notification-svc",tm:"Platform",cr:"Low",ln:"Go",sc:2.1,tr:"stable",sa:1,sc2:1,da:0,se:0,co:[],ls:"5d",v:{c:0,h:4,m:11,l:20},cv:50},{id:7,n:"checkout-flow",tm:"Payments",cr:"Critical",ln:"TypeScript",sc:2.9,tr:"up",sa:1,sc2:1,da:1,se:1,co:["PCI DSS","LGPD"],ls:"30m",v:{c:1,h:6,m:20,l:38},cv:100},{id:8,n:"internal-tools",tm:"Engineering",cr:"Low",ln:"Python",sc:1.2,tr:"up",sa:0,sc2:0,da:0,se:0,co:[],ls:"never",v:{c:0,h:0,m:0,l:0},cv:0}];
+const SM=[{d:"Governance",s:2.8},{d:"Design",s:2.4},{d:"Implementation",s:2.6},{d:"Verification",s:2.1},{d:"Operations",s:1.9}];
+const TD=[{m:"Nov",s:1.8},{m:"Dec",s:2.0},{m:"Jan",s:2.1},{m:"Feb",s:2.3},{m:"Mar",s:2.5},{m:"Apr",s:2.6}];
+const IG=[{n:"GitHub",ty:"SCM",st:"connected",r:142,ic:"GH",cl:"#e8e8e8"},{n:"GitLab",ty:"SCM",st:"connected",r:38,ic:"GL",cl:"#FC6D26"},{n:"Snyk",ty:"SCA",st:"connected",r:95,ic:"SN",cl:"#4C4A73"},{n:"SonarQube",ty:"SAST",st:"connected",r:120,ic:"SQ",cl:"#4E9BCD"},{n:"Checkmarx",ty:"SAST",st:"disconnected",r:0,ic:"CX",cl:"#54B848"},{n:"OWASP ZAP",ty:"DAST",st:"connected",r:42,ic:"ZP",cl:"#00549E"},{n:"Gitleaks",ty:"Secrets",st:"connected",r:180,ic:"GK",cl:"#E44D26"},{n:"Trivy",ty:"Container",st:"partial",r:60,ic:"TR",cl:"#1904DA"}];
+const AD=[{id:1,sv:"critical",pj:"data-pipeline",en:"No secrets scanning configured",pt:"Nenhum scan de secrets configurado",tp:"gap",t:"2h"},{id:2,sv:"critical",pj:"internal-tools",en:"Project has no security tools",pt:"Projeto sem ferramentas de seguran\u00e7a",tp:"gap",t:"5d"},{id:3,sv:"high",pj:"data-pipeline",en:"SCA not configured",pt:"SCA n\u00e3o configurado",tp:"gap",t:"2d"},{id:4,sv:"high",pj:"payments-api",en:"2 critical vulns open 7+ days",pt:"2 vulns cr\u00edticas abertas 7+ dias",tp:"vuln",t:"7d"},{id:5,sv:"high",pj:"notification-svc",en:"DAST not configured for external svc",pt:"DAST n\u00e3o configurado p/ servi\u00e7o externo",tp:"gap",t:"3d"},{id:6,sv:"medium",pj:"user-portal",en:"DAST not configured",pt:"DAST n\u00e3o configurado",tp:"gap",t:"1d"},{id:7,sv:"medium",pj:"mobile-app",en:"Score below team target",pt:"Score abaixo do target",tp:"maturity",t:"12h"},{id:8,sv:"low",pj:"checkout-flow",en:"DAST not run in 48h",pt:"DAST n\u00e3o executado em 48h",tp:"stale",t:"2d"}];
 
-const CriticalityBadge = ({ level }) => {
-  const m = { Critical: { bg: "var(--red-dim)", c: "var(--red)" }, High: { bg: "var(--orange-dim)", c: "var(--orange)" }, Medium: { bg: "var(--yellow-dim)", c: "var(--yellow)" }, Low: { bg: "var(--accent-dim)", c: "var(--accent)" } };
-  const s = m[level] || m.Low;
-  return <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: s.bg, color: s.c, letterSpacing: "0.3px" }}>{level}</span>;
-};
+const CSS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');:root{--b0:#0c0d14;--b1:#12131c;--b2:#16171f;--b2h:#1c1d28;--b3:#22232e;--bd:rgba(245,197,66,.08);--bdh:rgba(245,197,66,.18);--t1:#f0f0f0;--t2:#9a9bae;--t3:#5c5d6e;--ac:#f5c542;--acd:rgba(245,197,66,.10);--gr:#34d399;--grd:rgba(52,211,153,.12);--yl:#fbbf24;--yld:rgba(251,191,36,.12);--rd:#f87171;--rdd:rgba(248,113,113,.12);--or:#fb923c;--ord:rgba(251,146,60,.12)}*{margin:0;padding:0;box-sizing:border-box}html,body,#root{height:100%}body{background:var(--b0);color:var(--t1);font-family:'DM Sans',sans-serif}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bdh);border-radius:3px}@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}.sb{transition:transform .25s;position:fixed;left:0;top:0;z-index:50;width:260px;height:100vh;background:var(--b1);border-right:1px solid var(--bd);display:flex;flex-direction:column}.mn{margin-left:260px;flex:1;padding:24px 28px;min-height:100vh}.hb{display:none}@media(max-width:800px){.sb{transform:translateX(-100%)}.sb.op{transform:translateX(0)}.mn{margin-left:0!important;padding:16px!important}.hb{display:flex!important}.g2{grid-template-columns:1fr!important}.g3{grid-template-columns:1fr!important}.g4{grid-template-columns:1fr 1fr!important}.mr{flex-direction:column!important}}`;
 
-const SeverityBadge = ({ severity }) => {
-  const m = { critical: { bg: "var(--red-dim)", c: "var(--red)", l: "CRITICAL" }, high: { bg: "var(--orange-dim)", c: "var(--orange)", l: "HIGH" }, medium: { bg: "var(--yellow-dim)", c: "var(--yellow)", l: "MEDIUM" }, low: { bg: "var(--accent-dim)", c: "var(--accent)", l: "LOW" } };
-  const s = m[severity];
-  return <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: s.bg, color: s.c, letterSpacing: "0.5px" }}>{s.l}</span>;
-};
+const SBa=({s,sz})=>{const c=s>=3?"var(--gr)":s>=2?"var(--ac)":"var(--rd)";const b=s>=3?"var(--grd)":s>=2?"var(--acd)":"var(--rdd)";const w=sz==="lg"?64:42;return<div style={{width:w,height:w,borderRadius:12,background:b,border:`1.5px solid ${c}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz==="lg"?28:15,fontWeight:700,color:c,fontFamily:"'Outfit',sans-serif",flexShrink:0}}>{s.toFixed(1)}</div>};
+const CrB=({l})=>{const m={Critical:{b:"var(--rdd)",c:"var(--rd)"},High:{b:"var(--ord)",c:"var(--or)"},Medium:{b:"var(--yld)",c:"var(--yl)"},Low:{b:"var(--acd)",c:"var(--ac)"}};const x=m[l]||m.Low;return<span style={{padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:x.b,color:x.c}}>{l}</span>};
+const SvB=({s})=>{const m={critical:{b:"var(--rdd)",c:"var(--rd)",l:"CRITICAL"},high:{b:"var(--ord)",c:"var(--or)",l:"HIGH"},medium:{b:"var(--yld)",c:"var(--yl)",l:"MEDIUM"},low:{b:"var(--acd)",c:"var(--ac)",l:"LOW"}};const x=m[s];return<span style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:700,background:x.b,color:x.c,letterSpacing:".5px"}}>{x.l}</span>};
+const TlB=({a,l})=><span style={{padding:"3px 8px",borderRadius:5,fontSize:10,fontWeight:600,background:a?"var(--grd)":"var(--rdd)",color:a?"var(--gr)":"var(--rd)"}}>{l}</span>;
+const CvB=({p})=><div style={{display:"flex",alignItems:"center",gap:8,width:"100%"}}><div style={{flex:1,height:6,borderRadius:3,background:"var(--b3)",overflow:"hidden"}}><div style={{height:"100%",width:`${p}%`,borderRadius:3,background:p===100?"var(--gr)":p>=50?"var(--ac)":"var(--rd)",transition:"width .6s"}}/></div><span style={{fontSize:12,fontWeight:600,color:"var(--t2)",width:36,textAlign:"right"}}>{p}%</span></div>;
+const MC=({icon:I,label,value,sub,trend,color="var(--ac)"})=><div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:"16px 18px",flex:1,minWidth:155,animation:"fi .4s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}><div style={{width:34,height:34,borderRadius:10,background:`${color}18`,display:"flex",alignItems:"center",justifyContent:"center"}}><I size={17} color={color}/></div>{trend&&<div style={{display:"flex",alignItems:"center",gap:3,fontSize:12,fontWeight:600,color:trend==="up"?"var(--gr)":"var(--rd)"}}>{trend==="up"?<TrendingUp size={13}/>:<TrendingDown size={13}/>}{sub}</div>}</div><div style={{fontSize:26,fontWeight:800,fontFamily:"'Outfit',sans-serif",lineHeight:1}}>{value}</div><div style={{fontSize:11,color:"var(--t2)",marginTop:5}}>{label}</div></div>;
 
-const ToolBadge = ({ active, label }) => (
-  <span style={{ padding: "3px 8px", borderRadius: 5, fontSize: 10, fontWeight: 600, background: active ? "var(--green-dim)" : "var(--red-dim)", color: active ? "var(--green)" : "var(--red)", letterSpacing: "0.3px" }}>{label}</span>
-);
+const Side=({active,onNav,open,onClose,lang,setLang})=>{const t=TEXTS[lang];const its=[{id:"dashboard",ic:LayoutDashboard,l:t.dashboard},{id:"projects",ic:FolderKanban,l:t.projects},{id:"integrations",ic:Link2,l:t.integrations},{id:"alerts",ic:Bell,l:t.alerts,bg:AD.filter(a=>a.sv==="critical").length},{id:"compliance",ic:FileCheck,l:t.compliance},{id:"beforeafter",ic:ArrowUpRight,l:t.beforeAfter},{id:"settings",ic:Settings,l:t.settings}];
+return<><div className={`sb ${open?"op":""}`}><div style={{padding:20,display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid var(--bd)"}}><div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#f5c542,#c49a1a)",display:"flex",alignItems:"center",justifyContent:"center"}}><Shield size={18} color="#0c0d14"/></div><div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,fontFamily:"'Outfit',sans-serif",color:"var(--ac)"}}>SecOrch</div><div style={{fontSize:10,color:"var(--t3)",letterSpacing:1,textTransform:"uppercase"}}>DevSecOps Platform</div></div><button onClick={onClose} className="hb" style={{background:"none",border:"none",color:"var(--t2)",cursor:"pointer",alignItems:"center",justifyContent:"center"}}><X size={20}/></button></div>
+<div style={{padding:10,flex:1,overflowY:"auto"}}>{its.map(i=><button key={i.id} onClick={()=>{onNav(i.id);onClose()}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",borderRadius:10,border:"none",cursor:"pointer",marginBottom:2,background:active===i.id?"var(--acd)":"transparent",color:active===i.id?"var(--ac)":"var(--t2)",transition:"all .15s"}}><i.ic size={18}/><span style={{fontSize:13,fontWeight:active===i.id?600:400,flex:1,textAlign:"left"}}>{i.l}</span>{i.bg>0&&<span style={{background:"var(--rd)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:8}}>{i.bg}</span>}</button>)}</div>
+<div style={{padding:"12px 16px",borderTop:"1px solid var(--bd)"}}><button onClick={()=>setLang(lang==="en"?"pt":"en")} style={{width:"100%",background:"var(--acd)",border:"1px solid var(--bd)",borderRadius:8,padding:8,fontSize:12,fontWeight:600,color:"var(--ac)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Globe size={14}/>{t.switchLang}</button></div>
+<div style={{padding:"12px 16px",borderTop:"1px solid var(--bd)"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",background:"var(--acd)",border:"1px solid var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"var(--ac)"}}>AM</div><div><div style={{fontSize:12,fontWeight:600}}>Amanda Mendes</div><div style={{fontSize:10,color:"var(--t3)"}}>Head of AppSec</div></div></div></div></div>{open&&<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:40}}/>}</>};
 
-const MetricCard = ({ icon: Icon, label, value, sub, trend, color = "var(--accent)" }) => (
-  <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, flex: 1, minWidth: 180, animation: "fadeIn 0.4s ease" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon size={18} color={color} />
-      </div>
-      {trend && <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 600, color: trend === "up" ? "var(--green)" : "var(--red)" }}>{trend === "up" ? <TrendingUp size={13} /> : <TrendingDown size={13} />}{sub}</div>}
-    </div>
-    <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Outfit',sans-serif", lineHeight: 1 }}>{value}</div>
-    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>{label}</div>
-  </div>
-);
+const Dash=({onNav})=>{const{t}=uL();const avg=(PJ.reduce((s,p)=>s+p.sc,0)/PJ.length).toFixed(1);const tv=PJ.reduce((s,p)=>s+p.v.c+p.v.h+p.v.m+p.v.l,0);const cv=PJ.reduce((s,p)=>s+p.v.c,0);const fc=PJ.filter(p=>p.cv===100).length;return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,flexWrap:"wrap",gap:10}}><div><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.execView}</h1><p style={{fontSize:13,color:"var(--t2)"}}>{t.execSub}</p></div><button style={{background:"var(--acd)",border:"1px solid var(--bd)",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,color:"var(--ac)",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}><Download size={14}/>{t.exportR}</button></div>
+<div className="mr" style={{display:"flex",gap:12,marginBottom:18,flexWrap:"wrap"}}><MC icon={Shield} label={t.avgScore} value={avg} sub="+0.3" trend="up"/><MC icon={AlertTriangle} label={t.critVulns} value={cv} sub="-3" trend="up" color="var(--rd)"/><MC icon={Eye} label={t.toolCov} value={`${fc}/${PJ.length}`} color="var(--gr)"/><MC icon={Activity} label={t.totalVulns} value={tv} sub="-45" trend="up" color="var(--or)"/></div>
+<div className="g2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}}><div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:18,animation:"fi .5s"}}><div style={{fontSize:13,fontWeight:700,marginBottom:14,fontFamily:"'Outfit',sans-serif"}}>{t.scoreEvolution}</div><ResponsiveContainer width="100%" height={160}><AreaChart data={TD}><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f5c542" stopOpacity={.3}/><stop offset="95%" stopColor="#f5c542" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)"/><XAxis dataKey="m" tick={{fill:"#5c5d6e",fontSize:10}} axisLine={false} tickLine={false}/><YAxis domain={[0,4]} tick={{fill:"#5c5d6e",fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{background:"#22232e",border:"1px solid rgba(245,197,66,.15)",borderRadius:8,fontSize:11,color:"#f0f0f0"}}/><Area type="monotone" dataKey="s" stroke="#f5c542" strokeWidth={2.5} fill="url(#sg)" dot={{r:3,fill:"#f5c542",strokeWidth:0}}/></AreaChart></ResponsiveContainer></div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:18,animation:"fi .6s"}}><div style={{fontSize:13,fontWeight:700,marginBottom:14,fontFamily:"'Outfit',sans-serif"}}>{t.sammPortfolio}</div><ResponsiveContainer width="100%" height={160}><RadarChart data={SM.map(d=>({domain:d.d,score:d.s}))}><PolarGrid stroke="rgba(245,197,66,.08)"/><PolarAngleAxis dataKey="domain" tick={{fill:"#9a9bae",fontSize:9}}/><PolarRadiusAxis domain={[0,4]} tick={false} axisLine={false}/><Radar dataKey="score" stroke="#f5c542" fill="#f5c542" fillOpacity={.15} strokeWidth={2}/></RadarChart></ResponsiveContainer></div></div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:18,animation:"fi .7s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontSize:13,fontWeight:700,fontFamily:"'Outfit',sans-serif"}}>{t.scoreByProject}</div><button onClick={()=>onNav("projects")} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:"var(--ac)",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.viewAll}<ChevronRight size={14}/></button></div>
+<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{[t.project,t.team,t.criticality,t.score,t.coverage,t.vulnsH,t.tools,t.lastScan].map(h=><th key={h} style={{textAlign:"left",padding:"8px 10px",fontSize:10,fontWeight:600,color:"var(--t3)",borderBottom:"1px solid var(--bd)",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead><tbody>{PJ.map(p=><tr key={p.id} style={{cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="var(--b2h)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><td style={{padding:10,fontSize:13,fontWeight:600,borderBottom:"1px solid var(--bd)",whiteSpace:"nowrap"}}><div style={{display:"flex",alignItems:"center",gap:6}}><GitBranch size={13} color="var(--t3)"/>{p.n}</div></td><td style={{padding:10,fontSize:12,color:"var(--t2)",borderBottom:"1px solid var(--bd)"}}>{p.tm}</td><td style={{padding:10,borderBottom:"1px solid var(--bd)"}}><CrB l={p.cr}/></td><td style={{padding:10,borderBottom:"1px solid var(--bd)"}}><div style={{display:"flex",alignItems:"center",gap:6}}><SBa s={p.sc}/>{p.tr==="up"&&<TrendingUp size={12} color="var(--gr)"/>}{p.tr==="down"&&<TrendingDown size={12} color="var(--rd)"/>}</div></td><td style={{padding:10,borderBottom:"1px solid var(--bd)",minWidth:100}}><CvB p={p.cv}/></td><td style={{padding:10,fontSize:13,borderBottom:"1px solid var(--bd)",whiteSpace:"nowrap"}}><span style={{color:p.v.c>0?"var(--rd)":"var(--t2)",fontWeight:p.v.c>0?700:400}}>{p.v.c}</span><span style={{color:"var(--t3)"}}>/</span><span style={{color:p.v.h>0?"var(--or)":"var(--t2)"}}>{p.v.h}</span></td><td style={{padding:10,borderBottom:"1px solid var(--bd)"}}><div style={{display:"flex",gap:3,flexWrap:"wrap"}}><TlB a={p.sa} l="SAST"/><TlB a={p.sc2} l="SCA"/><TlB a={p.da} l="DAST"/><TlB a={p.se} l="SEC"/></div></td><td style={{padding:10,fontSize:11,color:"var(--t3)",borderBottom:"1px solid var(--bd)",whiteSpace:"nowrap"}}><div style={{display:"flex",alignItems:"center",gap:4}}><Clock size={11}/>{p.ls}</div></td></tr>)}</tbody></table></div></div></div>};
 
-const CoverageBar = ({ pct }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
-    <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--bg-elevated)", overflow: "hidden" }}>
-      <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3, background: pct === 100 ? "var(--green)" : pct >= 50 ? "var(--accent)" : "var(--red)", transition: "width 0.6s ease" }} />
-    </div>
-    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", width: 36, textAlign: "right" }}>{pct}%</span>
-  </div>
-);
+const Proj=()=>{const{t}=uL();const[sel,setSel]=useState(null);const[q,setQ]=useState("");const pj=PJ.find(p=>p.id===sel);const fl=PJ.filter(p=>p.n.includes(q.toLowerCase())||p.tm.toLowerCase().includes(q.toLowerCase()));
+if(pj){const pr=SM.map(d=>({domain:d.d,score:Math.min(4,d.s*(pj.sc/2.5))}));return<div><button onClick={()=>setSel(null)} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:"var(--ac)",fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:18}}>&larr; {t.back}</button><div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22,flexWrap:"wrap"}}><SBa s={pj.sc} sz="lg"/><div><h1 style={{fontSize:20,fontWeight:800,fontFamily:"'Outfit',sans-serif"}}>{pj.n}</h1><div style={{display:"flex",gap:10,alignItems:"center",marginTop:4,flexWrap:"wrap"}}><span style={{fontSize:12,color:"var(--t2)"}}>{pj.tm}</span><CrB l={pj.cr}/><span style={{fontSize:12,color:"var(--t3)"}}>{pj.ln}</span>{pj.co.map(c=><span key={c} style={{padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:600,background:"var(--acd)",color:"var(--ac)"}}>{c}</span>)}</div></div></div>
+<div className="g2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}><div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:18}}><div style={{fontSize:13,fontWeight:700,marginBottom:14,fontFamily:"'Outfit',sans-serif"}}>{t.sammBk}</div><ResponsiveContainer width="100%" height={190}><RadarChart data={pr}><PolarGrid stroke="rgba(245,197,66,.08)"/><PolarAngleAxis dataKey="domain" tick={{fill:"#9a9bae",fontSize:10}}/><PolarRadiusAxis domain={[0,4]} tick={false} axisLine={false}/><Radar dataKey="score" stroke="#f5c542" fill="#f5c542" fillOpacity={.15} strokeWidth={2} dot={{r:3,fill:"#f5c542"}}/></RadarChart></ResponsiveContainer></div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:18}}><div style={{fontSize:13,fontWeight:700,marginBottom:14,fontFamily:"'Outfit',sans-serif"}}>{t.vulns}</div><div className="g4" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{[{l:"Critical",v:pj.v.c,c:"var(--rd)"},{l:"High",v:pj.v.h,c:"var(--or)"},{l:"Medium",v:pj.v.m,c:"var(--ac)"},{l:"Low",v:pj.v.l,c:"var(--t2)"}].map(x=><div key={x.l} style={{background:"var(--b3)",borderRadius:10,padding:12,textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,fontFamily:"'Outfit',sans-serif",color:x.c}}>{x.v}</div><div style={{fontSize:10,color:"var(--t3)"}}>{x.l}</div></div>)}</div><div style={{marginTop:14}}><div style={{fontSize:11,fontWeight:600,color:"var(--t2)",marginBottom:6}}>{t.coverage}</div><CvB p={pj.cv}/></div></div></div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:18}}><div style={{fontSize:13,fontWeight:700,marginBottom:14,fontFamily:"'Outfit',sans-serif"}}>{t.intTools}</div><div className="g4" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>{[{n:"SAST",a:pj.sa,tl:"SonarQube"},{n:"SCA",a:pj.sc2,tl:"Snyk"},{n:"DAST",a:pj.da,tl:"OWASP ZAP"},{n:"Secrets",a:pj.se,tl:"Gitleaks"}].map(x=><div key={x.n} style={{background:"var(--b3)",borderRadius:10,padding:12,border:x.a?"1px solid rgba(52,211,153,.2)":"1px solid rgba(248,113,113,.2)"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>{x.a?<CheckCircle size={15} color="var(--gr)"/>:<XCircle size={15} color="var(--rd)"/>}<span style={{fontSize:12,fontWeight:600}}>{x.n}</span></div><div style={{fontSize:10,color:"var(--t3)"}}>{x.a?x.tl:t.notConf}</div></div>)}</div></div></div>}
+return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}><div><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.projects}</h1><p style={{fontSize:13,color:"var(--t2)"}}>{PJ.length} {t.projMon}</p></div><div style={{display:"flex",alignItems:"center",gap:6,background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:8,padding:"8px 12px"}}><Search size={14} color="var(--t3)"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={t.searchProj} style={{background:"none",border:"none",outline:"none",color:"var(--t1)",fontSize:12,width:150,fontFamily:"'DM Sans'"}}/></div></div>
+<div className="g2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{fl.map(p=><div key={p.id} onClick={()=>setSel(p.id)} style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:16,cursor:"pointer",transition:"all .15s",animation:"fi .4s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--bdh)";e.currentTarget.style.background="var(--b2h)"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";e.currentTarget.style.background="var(--b2)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}><div><div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{p.n}</div><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:11,color:"var(--t3)"}}>{p.tm}</span><CrB l={p.cr}/></div></div><SBa s={p.sc}/></div><CvB p={p.cv}/><div style={{display:"flex",gap:3,marginTop:10}}><TlB a={p.sa} l="SAST"/><TlB a={p.sc2} l="SCA"/><TlB a={p.da} l="DAST"/><TlB a={p.se} l="SEC"/></div></div>)}</div></div>};
 
-// ─── SIDEBAR ───
-const Sidebar = ({ active, onNav }) => {
-  const items = [
-    { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { id: "projects", icon: FolderKanban, label: "Projetos" },
-    { id: "integrations", icon: Link2, label: "Integra\u00e7\u00f5es" },
-    { id: "alerts", icon: Bell, label: "Alertas", badge: ALERTS.filter(a => a.severity === "critical").length },
-    { id: "compliance", icon: FileCheck, label: "Compliance" },
-    { id: "settings", icon: Settings, label: "Configura\u00e7\u00f5es" },
-  ];
-  return (
-    <div style={{ width: 240, background: "var(--bg-secondary)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 10 }}>
-      <div style={{ padding: "24px 20px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid var(--border)" }}>
-        <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, #f5c542, #c49a1a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Shield size={18} color="#0c0d14" />
-        </div>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Outfit',sans-serif", color: "var(--accent)" }}>SecOrch</div>
-          <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "1px", textTransform: "uppercase" }}>DevSecOps Platform</div>
-        </div>
-      </div>
+const Intg=()=>{const{t}=uL();return<div><div style={{marginBottom:18}}><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.intT}</h1><p style={{fontSize:13,color:"var(--t2)"}}>{t.intS}</p></div><div className="g3" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>{IG.map(x=><div key={x.n} style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:16,animation:"fi .4s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:38,height:38,borderRadius:10,background:`${x.cl}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:x.cl,fontFamily:"'JetBrains Mono'"}}>{x.ic}</div><div><div style={{fontSize:13,fontWeight:700}}>{x.n}</div><div style={{fontSize:10,color:"var(--t3)"}}>{x.ty}</div></div></div><div style={{width:8,height:8,borderRadius:"50%",background:x.st==="connected"?"var(--gr)":"var(--t3)",boxShadow:x.st==="connected"?"0 0 8px var(--gr)":"none"}}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:11,color:"var(--t2)"}}>{x.st==="connected"?`${x.r} ${t.repos}`:x.st==="partial"?`${x.r} (${t.partial})`:t.disconnected}</span><button style={{background:x.st==="disconnected"?"var(--ac)":"var(--b3)",border:"none",borderRadius:6,padding:"5px 12px",fontSize:10,fontWeight:600,color:x.st==="disconnected"?"#0c0d14":"var(--t2)",cursor:"pointer"}}>{x.st==="disconnected"?t.connect:t.configure}</button></div></div>)}<div style={{background:"var(--b2)",border:"2px dashed var(--bd)",borderRadius:14,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,cursor:"pointer",minHeight:120}}><Plus size={22} color="var(--ac)"/><span style={{fontSize:12,color:"var(--t3)"}}>{t.addInt}</span></div></div></div>};
 
-      <div style={{ padding: "12px 10px", flex: 1 }}>
-        {items.map(item => (
-          <button key={item.id} onClick={() => onNav(item.id)} style={{
-            display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
-            borderRadius: 10, border: "none", cursor: "pointer", marginBottom: 2, transition: "all 0.15s",
-            background: active === item.id ? "var(--accent-dim)" : "transparent",
-            color: active === item.id ? "var(--accent)" : "var(--text-secondary)",
-          }}>
-            <item.icon size={18} />
-            <span style={{ fontSize: 13, fontWeight: active === item.id ? 600 : 400, flex: 1, textAlign: "left" }}>{item.label}</span>
-            {item.badge > 0 && <span style={{ background: "var(--red)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, minWidth: 18, textAlign: "center" }}>{item.badge}</span>}
-          </button>
-        ))}
-      </div>
+const Alrt=()=>{const{t,lang}=uL();const[f,setF]=useState("all");const fl=f==="all"?AD:AD.filter(a=>f==="gap"?a.tp==="gap":f==="vuln"?a.tp==="vuln":a.tp==="maturity");return<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}><div><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.alertT}</h1><p style={{fontSize:13,color:"var(--t2)"}}>{t.alertS}</p></div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{[{k:"all",l:t.all},{k:"gap",l:t.gaps},{k:"vuln",l:t.vulnsF},{k:"maturity",l:t.maturity}].map(x=><button key={x.k} onClick={()=>setF(x.k)} style={{padding:"5px 12px",borderRadius:8,border:"1px solid var(--bd)",background:f===x.k?"var(--acd)":"transparent",color:f===x.k?"var(--ac)":"var(--t2)",fontSize:11,cursor:"pointer"}}>{x.l}</button>)}</div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{fl.map(a=><div key={a.id} style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,animation:"fi .3s",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdh)"} onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bd)"}><SvB s={a.sv}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{lang==="en"?a.en:a.pt}</div><span style={{fontSize:11,fontFamily:"'JetBrains Mono'",color:"var(--ac)"}}>{a.pj}</span></div><div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"var(--t3)",flexShrink:0}}><Clock size={11}/>{a.t}</div><ChevronRight size={15} color="var(--t3)"/></div>)}</div></div>};
 
-      <div style={{ padding: 16, borderTop: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent-dim)", border: "1px solid var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "var(--accent)" }}>AM</div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>Amanda Mendes</div>
-            <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Head of AppSec</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+const Comp=()=>{const{t}=uL();const fw=[{n:"PCI DSS v4.x",p:72,pj:2,c:{m:46,pa:12,mi:6}},{n:"LGPD",p:58,pj:3,c:{m:18,pa:10,mi:4}},{n:"SOC2 Type II",p:35,pj:2,c:{m:17,pa:15,mi:16}}];return<div><div style={{marginBottom:18}}><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.compT}</h1><p style={{fontSize:13,color:"var(--t2)"}}>{t.compS}</p></div><div style={{display:"flex",flexDirection:"column",gap:14}}>{fw.map(f=><div key={f.n} style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:20,animation:"fi .4s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}><div><div style={{fontSize:16,fontWeight:700,fontFamily:"'Outfit',sans-serif",marginBottom:3}}>{f.n}</div><div style={{fontSize:11,color:"var(--t3)"}}>{f.pj} {t.projAff}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:26,fontWeight:800,fontFamily:"'Outfit',sans-serif",color:f.p>=70?"var(--gr)":f.p>=50?"var(--ac)":"var(--rd)"}}>{f.p}%</div><div style={{fontSize:10,color:"var(--t3)"}}>{t.adherence}</div></div></div><div style={{height:7,borderRadius:4,background:"var(--b3)",overflow:"hidden",marginBottom:14}}><div style={{height:"100%",width:`${f.p}%`,borderRadius:4,background:f.p>=70?"var(--gr)":f.p>=50?"var(--ac)":"var(--rd)",transition:"width .8s"}}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>{[{l:t.met,v:f.c.m,c:"var(--gr)"},{l:t.partialC,v:f.c.pa,c:"var(--ac)"},{l:t.pending,v:f.c.mi,c:"var(--rd)"}].map(x=><div key={x.l} style={{background:"var(--b3)",borderRadius:8,padding:10,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,fontFamily:"'Outfit',sans-serif",color:x.c}}>{x.v}</div><div style={{fontSize:10,color:"var(--t3)"}}>{x.l}</div></div>)}</div></div>)}</div></div>};
 
-// ─── DASHBOARD ───
-const DashboardPage = ({ onNav }) => {
-  const avgScore = (PROJECTS.reduce((s, p) => s + p.score, 0) / PROJECTS.length).toFixed(1);
-  const totalVulns = PROJECTS.reduce((s, p) => s + p.vulns.critical + p.vulns.high + p.vulns.medium + p.vulns.low, 0);
-  const criticalVulns = PROJECTS.reduce((s, p) => s + p.vulns.critical, 0);
-  const fullCoverage = PROJECTS.filter(p => p.coverage === 100).length;
-  const radarData = SAMM_DOMAINS.map(d => ({ domain: d.domain, score: d.score, full: 4 }));
+const BA=()=>{const{t}=uL();return<div><div style={{marginBottom:18}}><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.beforeAfter}</h1></div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:20,marginBottom:14}}><div style={{fontSize:15,fontWeight:700,fontFamily:"'Outfit',sans-serif",marginBottom:14,color:"var(--rd)"}}>{t.beforeT}</div>{t.aspects.map((a,i)=><div key={i} style={{display:"flex",gap:12,padding:"10px 12px",background:i%2===0?"var(--b3)":"transparent",borderRadius:8,marginBottom:4}}><div style={{width:90,flexShrink:0,fontSize:12,fontWeight:600,color:"var(--t2)"}}>{a}</div><div style={{fontSize:12,color:"var(--t1)",lineHeight:1.5}}>{t.bef[i]}</div></div>)}</div>
+<div style={{background:"var(--b2)",border:"1px solid rgba(52,211,153,.15)",borderRadius:14,padding:20}}><div style={{fontSize:15,fontWeight:700,fontFamily:"'Outfit',sans-serif",marginBottom:14,color:"var(--gr)"}}>{t.afterT}</div>{t.aspects.map((a,i)=><div key={i} style={{display:"flex",gap:12,padding:"10px 12px",background:i%2===0?"var(--b3)":"transparent",borderRadius:8,marginBottom:4}}><div style={{width:90,flexShrink:0,fontSize:12,fontWeight:600,color:"var(--t2)"}}>{a}</div><div style={{fontSize:12,color:"var(--t1)",lineHeight:1.5}}>{t.aft[i]}</div></div>)}</div></div>};
 
-  return (
-    <div>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>Vis\u00e3o Executiva</h1>
-        <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Postura de seguran\u00e7a do portf\u00f3lio &middot; Atualizado em tempo real</p>
-      </div>
+const Sett=()=>{const{t}=uL();const[tg,setTg]=useState({g:1,b:0,r:1,s:1});return<div><div style={{marginBottom:18}}><h1 style={{fontSize:22,fontWeight:800,fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{t.settT}</h1><p style={{fontSize:13,color:"var(--t2)"}}>{t.settS}</p></div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:20,marginBottom:14}}><div style={{fontSize:14,fontWeight:700,fontFamily:"'Outfit',sans-serif",marginBottom:14}}>{t.adaptGates}</div>{["Critical","High","Medium","Low"].map((l,i)=><div key={l} style={{background:"var(--b3)",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:8,flexWrap:"wrap"}}><CrB l={l}/><div style={{flex:1,fontSize:12,color:"var(--t2)",minWidth:180}}>{t.gateR[i]}</div><div style={{fontSize:12,fontWeight:600,color:"var(--ac)"}}>{i<3?`${t.minS} ${["3.0","2.5","2.0"][i]}`:t.noMin}</div><button style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:6,padding:"5px 10px",fontSize:10,color:"var(--t2)",cursor:"pointer"}}>{t.edit}</button></div>)}</div>
+<div style={{background:"var(--b2)",border:"1px solid var(--bd)",borderRadius:14,padding:20}}><div style={{fontSize:14,fontWeight:700,fontFamily:"'Outfit',sans-serif",marginBottom:14}}>{t.genSett}</div>{[{k:"g",l:t.gapN,d:t.gapD},{k:"b",l:t.autoB,d:t.autoBD},{k:"r",l:t.weekR,d:t.weekRD},{k:"s",l:t.contS,d:t.contSD}].map(s=><div key={s.k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--bd)"}}><div style={{marginRight:14}}><div style={{fontSize:13,fontWeight:600,marginBottom:2}}>{s.l}</div><div style={{fontSize:11,color:"var(--t3)"}}>{s.d}</div></div><div onClick={()=>setTg(p=>({...p,[s.k]:p[s.k]?0:1}))} style={{width:44,height:24,borderRadius:12,background:tg[s.k]?"var(--ac)":"var(--b3)",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}><div style={{width:18,height:18,borderRadius:"50%",background:tg[s.k]?"#0c0d14":"#fff",position:"absolute",top:3,left:tg[s.k]?23:3,transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.3)"}}/></div></div>)}</div></div>};
 
-      <div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
-        <MetricCard icon={Shield} label="Score m\u00e9dio de maturidade (SAMM)" value={avgScore} sub="+0.3" trend="up" />
-        <MetricCard icon={AlertTriangle} label="Vulnerabilidades cr\u00edticas abertas" value={criticalVulns} sub="-3" trend="up" color="var(--red)" />
-        <MetricCard icon={Eye} label="Cobertura total de ferramentas" value={`${fullCoverage}/${PROJECTS.length}`} color="var(--green)" />
-        <MetricCard icon={Activity} label="Total de vulnerabilidades" value={totalVulns} sub="-45" trend="up" color="var(--orange)" />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, animation: "fadeIn 0.5s" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, fontFamily: "'Outfit',sans-serif" }}>Evolu\u00e7\u00e3o do Score de Maturidade</div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={TREND_DATA}>
-              <defs>
-                <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f5c542" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f5c542" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="month" tick={{ fill: "#5c5d6e", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 4]} tick={{ fill: "#5c5d6e", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#22232e", border: "1px solid rgba(245,197,66,0.15)", borderRadius: 8, fontSize: 12, color: "#f0f0f0" }} />
-              <Area type="monotone" dataKey="score" stroke="#f5c542" strokeWidth={2.5} fill="url(#sg)" dot={{ r: 4, fill: "#f5c542", strokeWidth: 0 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, animation: "fadeIn 0.6s" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, fontFamily: "'Outfit',sans-serif" }}>OWASP SAMM &middot; Portf\u00f3lio</div>
-          <ResponsiveContainer width="100%" height={180}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="rgba(245,197,66,0.08)" />
-              <PolarAngleAxis dataKey="domain" tick={{ fill: "#9a9bae", fontSize: 10 }} />
-              <PolarRadiusAxis domain={[0, 4]} tick={false} axisLine={false} />
-              <Radar name="Score" dataKey="score" stroke="#f5c542" fill="#f5c542" fillOpacity={0.15} strokeWidth={2} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, animation: "fadeIn 0.7s" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Outfit',sans-serif" }}>Score de Maturidade por Projeto</div>
-          <button onClick={() => onNav("projects")} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--accent)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Ver todos <ChevronRight size={14} /></button>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {["Projeto", "Time", "Criticidade", "Score", "Cobertura", "Vulns (C/H)", "Tools", "\u00daltimo scan"].map(h => (
-                  <th key={h} style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", borderBottom: "1px solid var(--border)", letterSpacing: "0.5px", textTransform: "uppercase" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PROJECTS.map(p => (
-                <tr key={p.id} style={{ cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg-card-hover)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: 12, fontSize: 13, fontWeight: 600, borderBottom: "1px solid var(--border)" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><GitBranch size={14} color="var(--text-muted)" />{p.name}</div></td>
-                  <td style={{ padding: 12, fontSize: 12, color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>{p.team}</td>
-                  <td style={{ padding: 12, borderBottom: "1px solid var(--border)" }}><CriticalityBadge level={p.criticality} /></td>
-                  <td style={{ padding: 12, borderBottom: "1px solid var(--border)" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><ScoreBadge score={p.score} />{p.trend === "up" && <TrendingUp size={13} color="var(--green)" />}{p.trend === "down" && <TrendingDown size={13} color="var(--red)" />}</div></td>
-                  <td style={{ padding: 12, borderBottom: "1px solid var(--border)", minWidth: 120 }}><CoverageBar pct={p.coverage} /></td>
-                  <td style={{ padding: 12, fontSize: 13, borderBottom: "1px solid var(--border)" }}><span style={{ color: p.vulns.critical > 0 ? "var(--red)" : "var(--text-secondary)", fontWeight: p.vulns.critical > 0 ? 700 : 400 }}>{p.vulns.critical}</span><span style={{ color: "var(--text-muted)" }}> / </span><span style={{ color: p.vulns.high > 0 ? "var(--orange)" : "var(--text-secondary)" }}>{p.vulns.high}</span></td>
-                  <td style={{ padding: 12, borderBottom: "1px solid var(--border)" }}><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><ToolBadge active={p.sast} label="SAST" /><ToolBadge active={p.sca} label="SCA" /><ToolBadge active={p.dast} label="DAST" /><ToolBadge active={p.secrets} label="SEC" /></div></td>
-                  <td style={{ padding: 12, fontSize: 12, color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}><div style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock size={12} /> {p.lastScan}</div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── PROJECTS ───
-const ProjectsPage = () => {
-  const [selected, setSelected] = useState(null);
-  const project = PROJECTS.find(p => p.id === selected);
-
-  if (project) {
-    const projectRadar = SAMM_DOMAINS.map(d => ({ domain: d.domain, score: Math.min(4, d.score * (project.score / 2.5)), full: 4 }));
-    return (
-      <div>
-        <button onClick={() => setSelected(null)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 20 }}>&larr; Voltar aos projetos</button>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
-          <ScoreBadge score={project.score} size="lg" />
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Outfit',sans-serif" }}>{project.name}</h1>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 4 }}>
-              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{project.team}</span>
-              <CriticalityBadge level={project.criticality} />
-              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{project.lang}</span>
-              {project.compliance.map(c => <span key={c} style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: "var(--accent-dim)", color: "var(--accent)" }}>{c}</span>)}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, fontFamily: "'Outfit',sans-serif" }}>OWASP SAMM Breakdown</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={projectRadar}>
-                <PolarGrid stroke="rgba(245,197,66,0.08)" />
-                <PolarAngleAxis dataKey="domain" tick={{ fill: "#9a9bae", fontSize: 11 }} />
-                <PolarRadiusAxis domain={[0, 4]} tick={false} axisLine={false} />
-                <Radar dataKey="score" stroke="#f5c542" fill="#f5c542" fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: "#f5c542" }} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, fontFamily: "'Outfit',sans-serif" }}>Vulnerabilidades</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[{ l: "Critical", v: project.vulns.critical, c: "var(--red)" }, { l: "High", v: project.vulns.high, c: "var(--orange)" }, { l: "Medium", v: project.vulns.medium, c: "var(--accent)" }, { l: "Low", v: project.vulns.low, c: "var(--text-secondary)" }].map(x => (
-                <div key={x.l} style={{ background: "var(--bg-elevated)", borderRadius: 10, padding: 14, textAlign: "center" }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Outfit',sans-serif", color: x.c }}>{x.v}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{x.l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>Cobertura de ferramentas</div>
-              <CoverageBar pct={project.coverage} />
-            </div>
-          </div>
-        </div>
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, fontFamily: "'Outfit',sans-serif" }}>Ferramentas integradas</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
-            {[{ n: "SAST", a: project.sast, t: "SonarQube" }, { n: "SCA", a: project.sca, t: "Snyk" }, { n: "DAST", a: project.dast, t: "OWASP ZAP" }, { n: "Secrets", a: project.secrets, t: "Gitleaks" }].map(x => (
-              <div key={x.n} style={{ background: "var(--bg-elevated)", borderRadius: 10, padding: 14, border: x.a ? "1px solid rgba(52,211,153,0.2)" : "1px solid rgba(248,113,113,0.2)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  {x.a ? <CheckCircle size={16} color="var(--green)" /> : <XCircle size={16} color="var(--red)" />}
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{x.n}</span>
-                </div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{x.a ? x.t : "N\u00e3o configurado"}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>Projetos</h1>
-          <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{PROJECTS.length} projetos monitorados</p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px" }}>
-          <Search size={14} color="var(--text-muted)" />
-          <input placeholder="Buscar projeto..." style={{ background: "none", border: "none", outline: "none", color: "var(--text-primary)", fontSize: 12, width: 160, fontFamily: "'DM Sans'" }} />
-        </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {PROJECTS.map(p => (
-          <div key={p.id} onClick={() => setSelected(p.id)} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 18, cursor: "pointer", transition: "all 0.15s", animation: "fadeIn 0.4s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hover)"; e.currentTarget.style.background = "var(--bg-card-hover)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg-card)"; }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.team}</span><CriticalityBadge level={p.criticality} /></div>
-              </div>
-              <ScoreBadge score={p.score} />
-            </div>
-            <CoverageBar pct={p.coverage} />
-            <div style={{ display: "flex", gap: 4, marginTop: 12 }}><ToolBadge active={p.sast} label="SAST" /><ToolBadge active={p.sca} label="SCA" /><ToolBadge active={p.dast} label="DAST" /><ToolBadge active={p.secrets} label="SEC" /></div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ─── INTEGRATIONS ───
-const IntegrationsPage = () => (
-  <div>
-    <div style={{ marginBottom: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>Integra\u00e7\u00f5es</h1>
-      <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Ferramentas conectadas ao pipeline de seguran\u00e7a</p>
-    </div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-      {INTEGRATIONS.map(t => (
-        <div key={t.name} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, animation: "fadeIn 0.4s" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: `${t.color}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: t.color, fontFamily: "'JetBrains Mono'" }}>{t.icon}</div>
-              <div><div style={{ fontSize: 14, fontWeight: 700 }}>{t.name}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.type}</div></div>
-            </div>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.status === "connected" ? "var(--green)" : "var(--text-muted)", boxShadow: t.status === "connected" ? "0 0 8px var(--green)" : "none" }} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{t.status === "connected" ? `${t.repos} repos` : t.status === "partial" ? `${t.repos} repos (parcial)` : "Desconectado"}</span>
-            <button style={{ background: t.status === "disconnected" ? "var(--accent)" : "var(--bg-elevated)", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 600, color: t.status === "disconnected" ? "#0c0d14" : "var(--text-secondary)", cursor: "pointer" }}>{t.status === "disconnected" ? "Conectar" : "Configurar"}</button>
-          </div>
-        </div>
-      ))}
-      <div style={{ background: "var(--bg-card)", border: "2px dashed var(--border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", minHeight: 130 }}>
-        <Plus size={24} color="var(--accent)" /><span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>Adicionar integra\u00e7\u00e3o</span>
-      </div>
-    </div>
-  </div>
-);
-
-// ─── ALERTS ───
-const AlertsPage = () => {
-  const [filter, setFilter] = useState("Todos");
-  const filtered = filter === "Todos" ? ALERTS : ALERTS.filter(a => filter === "Gaps" ? a.type === "gap" : filter === "Vulns" ? a.type === "vuln" : a.type === "maturity");
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div><h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>Alertas</h1><p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Gaps de cobertura e vulnerabilidades priorit\u00e1rias</p></div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {["Todos", "Gaps", "Vulns", "Maturidade"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: f === filter ? "var(--accent-dim)" : "transparent", color: f === filter ? "var(--accent)" : "var(--text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>{f}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map(a => (
-          <div key={a.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, animation: "fadeIn 0.3s", cursor: "pointer", transition: "all 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = "var(--border-hover)"} onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-            <SeverityBadge severity={a.severity} />
-            <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{a.message}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}><span style={{ fontFamily: "'JetBrains Mono'", color: "var(--accent)" }}>{a.project}</span></div></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-muted)" }}><Clock size={12} /> {a.time}</div>
-            <ChevronRight size={16} color="var(--text-muted)" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ─── COMPLIANCE ───
-const CompliancePage = () => {
-  const frameworks = [
-    { name: "PCI DSS v4.x", pct: 72, projects: 2, controls: { met: 46, partial: 12, missing: 6 } },
-    { name: "LGPD", pct: 58, projects: 3, controls: { met: 18, partial: 10, missing: 4 } },
-    { name: "SOC2 Type II", pct: 35, projects: 2, controls: { met: 17, partial: 15, missing: 16 } },
-  ];
-  return (
-    <div>
-      <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>Compliance</h1><p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Status de conformidade por framework regulat\u00f3rio</p></div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {frameworks.map(fw => (
-          <div key={fw.name} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, animation: "fadeIn 0.4s" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
-              <div><div style={{ fontSize: 17, fontWeight: 700, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>{fw.name}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fw.projects} projetos afetados</div></div>
-              <div style={{ textAlign: "right" }}><div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Outfit',sans-serif", color: fw.pct >= 70 ? "var(--green)" : fw.pct >= 50 ? "var(--accent)" : "var(--red)" }}>{fw.pct}%</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ader\u00eancia</div></div>
-            </div>
-            <div style={{ height: 8, borderRadius: 4, background: "var(--bg-elevated)", overflow: "hidden", marginBottom: 18 }}>
-              <div style={{ height: "100%", width: `${fw.pct}%`, borderRadius: 4, background: fw.pct >= 70 ? "var(--green)" : fw.pct >= 50 ? "var(--accent)" : "var(--red)", transition: "width 0.8s" }} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              {[{ l: "Atendidos", v: fw.controls.met, c: "var(--green)" }, { l: "Parcial", v: fw.controls.partial, c: "var(--accent)" }, { l: "Pendentes", v: fw.controls.missing, c: "var(--red)" }].map(x => (
-                <div key={x.l} style={{ background: "var(--bg-elevated)", borderRadius: 8, padding: 12, textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'Outfit',sans-serif", color: x.c }}>{x.v}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{x.l}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ─── SETTINGS ───
-const SettingsPage = () => {
-  const [toggles, setToggles] = useState({ gaps: true, block: false, report: true, sync: true });
-  return (
-    <div>
-      <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Outfit',sans-serif", marginBottom: 4 }}>Configura\u00e7\u00f5es</h1><p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Pol\u00edticas de seguran\u00e7a e gates adaptativos</p></div>
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Outfit',sans-serif", marginBottom: 16 }}>Gates Adaptativos por Criticidade</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
-            { level: "Critical", rules: "SAST + SCA + DAST + Secrets obrigat\u00f3rios. Bloqueia critical e high.", score: "M\u00ednimo 3.0" },
-            { level: "High", rules: "SAST + SCA + Secrets obrigat\u00f3rios. Bloqueia critical.", score: "M\u00ednimo 2.5" },
-            { level: "Medium", rules: "SAST + SCA obrigat\u00f3rios. Alerta em critical.", score: "M\u00ednimo 2.0" },
-            { level: "Low", rules: "SAST recomendado. Sem bloqueio.", score: "Sem m\u00ednimo" },
-          ].map(g => (
-            <div key={g.level} style={{ background: "var(--bg-elevated)", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", gap: 16 }}>
-              <CriticalityBadge level={g.level} />
-              <div style={{ flex: 1, fontSize: 12, color: "var(--text-secondary)" }}>{g.rules}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>{g.score}</div>
-              <button style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "var(--text-secondary)", cursor: "pointer" }}>Editar</button>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 24 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Outfit',sans-serif", marginBottom: 16 }}>Configura\u00e7\u00f5es Gerais</div>
-        {[
-          { key: "gaps", label: "Notifica\u00e7\u00f5es de gaps de cobertura", desc: "Alertar quando um projeto n\u00e3o tem ferramenta obrigat\u00f3ria" },
-          { key: "block", label: "Bloqueio autom\u00e1tico de deploy", desc: "Impedir deploy quando score abaixo do m\u00ednimo" },
-          { key: "report", label: "Relat\u00f3rio semanal autom\u00e1tico", desc: "Enviar resumo executivo toda segunda-feira" },
-          { key: "sync", label: "Sync cont\u00ednuo de vulnerabilidades", desc: "Atualizar dados das ferramentas a cada 15min" },
-        ].map(s => (
-          <div key={s.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-            <div><div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{s.label}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.desc}</div></div>
-            <div onClick={() => setToggles(prev => ({ ...prev, [s.key]: !prev[s.key] }))} style={{ width: 44, height: 24, borderRadius: 12, background: toggles[s.key] ? "var(--accent)" : "var(--bg-elevated)", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-              <div style={{ width: 18, height: 18, borderRadius: "50%", background: toggles[s.key] ? "#0c0d14" : "#fff", position: "absolute", top: 3, left: toggles[s.key] ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ─── APP ───
-export default function App() {
-  const [page, setPage] = useState("dashboard");
-  return (
-    <>
-      <style>{CSS}</style>
-      <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
-        <Sidebar active={page} onNav={setPage} />
-        <main style={{ marginLeft: 240, flex: 1, padding: "28px 32px", maxWidth: "calc(100vw - 240px)" }}>
-          {page === "dashboard" && <DashboardPage onNav={setPage} />}
-          {page === "projects" && <ProjectsPage />}
-          {page === "integrations" && <IntegrationsPage />}
-          {page === "alerts" && <AlertsPage />}
-          {page === "compliance" && <CompliancePage />}
-          {page === "settings" && <SettingsPage />}
-        </main>
-      </div>
-    </>
-  );
-}
+export default function App(){const[pg,setPg]=useState("dashboard");const[so,setSo]=useState(false);const[lang,setLang]=useState("pt");const t=TEXTS[lang];
+return<LC.Provider value={{t,lang}}><style>{CSS}</style><div style={{display:"flex",minHeight:"100vh",background:"var(--b0)"}}><Side active={pg} onNav={setPg} open={so} onClose={()=>setSo(false)} lang={lang} setLang={setLang}/>
+<main className="mn"><div className="hb" style={{marginBottom:14,alignItems:"center"}}><button onClick={()=>setSo(true)} style={{background:"none",border:"none",color:"var(--ac)",cursor:"pointer",padding:4}}><Menu size={24}/></button></div>
+{pg==="dashboard"&&<Dash onNav={setPg}/>}{pg==="projects"&&<Proj/>}{pg==="integrations"&&<Intg/>}{pg==="alerts"&&<Alrt/>}{pg==="compliance"&&<Comp/>}{pg==="beforeafter"&&<BA/>}{pg==="settings"&&<Sett/>}
+</main></div></LC.Provider>}
